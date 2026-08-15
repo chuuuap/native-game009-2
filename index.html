@@ -496,7 +496,7 @@ document.addEventListener('contextmenu',e=>{if(e.target.closest('#login'))return
 document.addEventListener('selectstart',e=>{if(e.target.closest('#login'))return;if(!/^(INPUT|TEXTAREA)$/.test(e.target.tagName))e.preventDefault()});
 const SUPABASE_URL='https://akoucvgnlzswxlukrnlf.supabase.co',SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrb3VjdmdubHpzd3hsdWtybmxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NTI1NDEsImV4cCI6MjEwMTMyODU0MX0.uyDYyBIXExjJ_RDlz0d1VK4PkbvPAvbUfeeojgCOexg';
 let sb=null;try{sb=window.supabase?.createClient(SUPABASE_URL,SUPABASE_ANON_KEY)}catch(e){}
-let games=[];let banners=[];let nick='',scores={},playing=null,resultHandled=false;let totalXp=0,currentLevel=1;
+let games=[];let banners=[];let nick='',scores={},playing=null,resultHandled=false,resultRenderToken=0;let totalXp=0,currentLevel=1;
 let bannerIndex=0;
 let bannerTimer=null;
 const BANNER_INTERVAL=5000;
@@ -551,7 +551,7 @@ const STATIC_GAME_FILES={
 };
 function staticGameUrl(g){
   const file=STATIC_GAME_FILES[String(g?.title||'').trim()];
-  return file?'games/'+file.split('/').map(encodeURIComponent).join('/')+'?v=20260815-nallari-keyboard':'';
+  return file?'games/'+file.split('/').map(encodeURIComponent).join('/')+'?v=20260815-nallari-keyboard-v2':'';
 }
 function extractGameUrl(value){
   if(typeof value!=='string')return '';
@@ -1288,7 +1288,9 @@ async function openGame(g){
   };
 
   // 곡 목록 조회에서 이미 game_html을 받았다면 추가 네트워크 요청 없이 즉시 실행.
-  const readyHtml=g.file||getCachedGameHtml(g.id);
+  // 정적 게임은 이전 메모리/브라우저 캐시를 쓰지 않고 항상 최신 파일을 받는다.
+  const hasStaticGame=!!staticGameUrl(g);
+  const readyHtml=hasStaticGame?'':(g.file||getCachedGameHtml(g.id));
   if(readyHtml){ mountGame(readyHtml); return; }
 
   frame.srcdoc=`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
@@ -1298,7 +1300,7 @@ async function openGame(g){
   try{
     // 게임 HTML은 용량이 클 수 있어 고정 7초 타임아웃으로 정상 요청을 끊지 않는다.
     // 먼저 일반 조회를 기다리고, 실패/빈 응답일 때 캐시를 한 번 더 확인한다.
-    let html=await fetchGameHtml(g);
+    let html=await fetchGameHtml(g,{force:hasStaticGame});
     if(!html){
       html=g.file||getCachedGameHtml(g.id)||'';
     }
@@ -1315,6 +1317,7 @@ function closePlayer(){
 }
 $('#closePlayer').onclick=()=>{closePlayer();playing=null};
 async function showSongResult(game,score,finishReason,xpGain,oldLevel){
+  const renderToken=++resultRenderToken;
   $('#resultTitle').textContent=finishReason==='life'?'LIFE 소진 · 게임 종료':(game.title||'플레이 결과');
   $('#resultScore').textContent=Number(score).toLocaleString();
   $('#resultRank').innerHTML=`현재 점수 <b>${Number(score).toLocaleString()}</b>점 · 랭킹 집계 중…`;
@@ -1331,17 +1334,16 @@ async function showSongResult(game,score,finishReason,xpGain,oldLevel){
       if(error)throw error;rows=data||[];
     }catch(err){rankFailed=true;console.error(err)}
   }else{rankFailed=true}
-  // 저장 완료 시점과 무관하게 방금 플레이한 현재 점수를 랭킹 계산에 반드시 포함한다.
-  rows.push({nickname:nick,score:Number(score)||0,grade:grade(Number(score)||0)});
   // Defensive de-duplication by nickname, keeping the maximum score.
   const bestByNick={};
   rows.forEach(r=>{const v=+r.score||0;if(!bestByNick[r.nickname]||v>bestByNick[r.nickname].score)bestByNick[r.nickname]={nickname:r.nickname,score:v,grade:r.grade||grade(v)}});
   const ranking=Object.values(bestByNick).sort((a,b)=>b.score-a.score);
   const myIndex=ranking.findIndex(r=>r.nickname===nick);
+  if(renderToken!==resultRenderToken)return;
   if(finishReason!=='life')$('#resultTitle').textContent=game.title||'플레이 결과';
   $('#resultRank').innerHTML=rankFailed
-    ?`현재 점수 <b>${Number(score).toLocaleString()}</b>점 · 임시 <b>${myIndex+1}</b>등`
-    :`현재 점수 <b>${Number(score).toLocaleString()}</b>점 · 총 <b>${ranking.length}</b>명 중 <b>${myIndex+1}</b>등`;
+    ?'곡별 최고기록을 불러오지 못했어요.'
+    :(myIndex>=0?`총 <b>${ranking.length}</b>명 중 <b>${myIndex+1}</b>등`:`총 <b>${ranking.length}</b>명 참여`);
   $('#songTop10').innerHTML=ranking.length?ranking.slice(0,10).map((r,i)=>`<div class="songRankRow ${r.nickname===nick?'me':''}"><div class="songRankNo">${i+1}</div><div class="songRankNick">${esc(r.nickname)}${r.nickname===nick?' · 나':''}</div><div class="songRankScore">${r.score.toLocaleString()}</div></div>`).join(''):'<div class="empty">아직 집계된 기록이 없어요.</div>';
 }
 
@@ -1360,6 +1362,8 @@ window.addEventListener('message',async e=>{
     if(sb)try{const{error}=await sb.from('scores').upsert({nickname:nick,song_id:game.id,song_title:game.title,score,grade:d.grade||grade(score)},{onConflict:'nickname,song_id'});if(error)throw error}catch(err){console.error(err);toast('기록 저장에 실패했어요.')}
   }
   renderAll();
+  // 저장이 끝난 뒤 서버의 곡별 최고기록으로 TOP 10과 등수를 다시 확정한다.
+  await showSongResult(game,Math.max(score,0),d.finishReason||'music',xpGain,oldLevel);
 });
 $('#changeNick').onclick=()=>{try{localStorage.removeItem(SAVED_NICK_KEY)}catch(e){}location.reload()};
 // 로그인 화면이 보이는 동안 곡 목록을 미리 받아둬서, 로그인 직후 화면 전환이 빠르게 느껴지도록 함
