@@ -479,7 +479,7 @@ html,body{
 <div id="player"><button class="closePlayer" id="closePlayer">← 목록으로</button><iframe id="frame"></iframe></div><div id="toast"></div>
 <div id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
   <div class="resultCard">
-    <div class="resultEyebrow">TOP SCORE</div>
+    <div class="resultEyebrow">GAME RESULT</div>
     <div class="resultTitle" id="resultTitle">플레이 결과</div>
     <div class="resultScore" id="resultScore">0</div>
     <div class="resultRank" id="resultRank">집계 중…</div><div class="resultLevel" id="resultLevelBox"><div class="resultLevelTop"><b id="resultLevelText">LV.1</b><span id="resultXpGain">+0 XP</span></div><div class="resultLevelTrack"><div class="resultLevelFill" id="resultLevelFill" style="width:0%"></div></div></div>
@@ -1316,10 +1316,10 @@ function closePlayer(){
   $('#frame').srcdoc='';
 }
 $('#closePlayer').onclick=()=>{closePlayer();playing=null};
-async function showSongResult(game,finishReason,xpGain,oldLevel){
+async function showSongResult(game,score,finishReason,xpGain,oldLevel){
   const renderToken=++resultRenderToken;
   $('#resultTitle').textContent=finishReason==='life'?'LIFE 소진 · 게임 종료':(game.title||'플레이 결과');
-  $('#resultScore').textContent='—';
+  $('#resultScore').textContent=Number(score).toLocaleString();
   $('#resultRank').textContent='곡별 최고기록 집계 중…';
   $('#songTop10').innerHTML='<div class="empty">최고기록을 불러오는 중…</div>';
   const lp=levelProgress(totalXp);$('#resultLevelText').textContent='Lv. ' + lp.lv;$('#resultXpGain').textContent='+'+(xpGain||0).toLocaleString()+' XP'+(lp.lv>oldLevel?' · LEVEL UP!':'');$('#resultLevelFill').style.width=lp.pct+'%';$('#resultModal').classList.add('show');
@@ -1339,7 +1339,6 @@ async function showSongResult(game,finishReason,xpGain,oldLevel){
   const myIndex=ranking.findIndex(r=>r.nickname===nick);
   if(renderToken!==resultRenderToken)return;
   if(finishReason!=='life')$('#resultTitle').textContent=game.title||'플레이 결과';
-  $('#resultScore').textContent=ranking.length?ranking[0].score.toLocaleString():'0';
   $('#resultRank').innerHTML=rankFailed
     ?'곡별 최고기록을 불러오지 못했어요.'
     :(myIndex>=0?`총 <b>${ranking.length}</b>명 중 <b>${myIndex+1}</b>등`:`총 <b>${ranking.length}</b>명 참여`);
@@ -1358,7 +1357,7 @@ window.addEventListener('message',async e=>{
   const score=Math.max(Number(d.score)||0,liveScore),prev=scores[game.id]?.score||0,oldLevel=currentLevel,xpGain=xpFromScore(score);
   // 결과창은 즉시 열되, 이번 판 점수를 TOP 기록처럼 임시 표시하지 않는다.
   $('#resultTitle').textContent=d.finishReason==='life'?'LIFE 소진 · 게임 종료':(game.title||'플레이 결과');
-  $('#resultScore').textContent='—';
+  $('#resultScore').textContent=Number(score).toLocaleString();
   $('#resultRank').textContent='곡별 최고기록 집계 중…';
   $('#songTop10').innerHTML='<div class="empty">최고기록을 불러오는 중…</div>';
   const lp=levelProgress(totalXp);$('#resultLevelText').textContent='Lv. '+lp.lv;$('#resultXpGain').textContent='+'+(xpGain||0).toLocaleString()+' XP'+(lp.lv>oldLevel?' · LEVEL UP!':'');$('#resultLevelFill').style.width=lp.pct+'%';$('#resultModal').classList.add('show');
@@ -1372,7 +1371,7 @@ window.addEventListener('message',async e=>{
   }catch(err){console.error(err);toast('최고기록 저장에 실패했어요.')}
   renderAll();
   // 저장이 끝난 뒤 서버의 곡별 최고기록으로 TOP 점수, TOP 10, 실제 등수를 한 번만 확정한다.
-  await showSongResult(game,d.finishReason||'music',xpGain,oldLevel);
+  await showSongResult(game,score,d.finishReason||'music',xpGain,oldLevel);
 });
 $('#changeNick').onclick=()=>{try{localStorage.removeItem(SAVED_NICK_KEY)}catch(e){}location.reload()};
 // 로그인 화면이 보이는 동안 곡 목록을 미리 받아둬서, 로그인 직후 화면 전환이 빠르게 느껴지도록 함
