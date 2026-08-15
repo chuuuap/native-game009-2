@@ -1326,13 +1326,10 @@ async function showSongResult(game,finishReason,xpGain,oldLevel){
   let rows=[],rankFailed=false;
   if(sb){
     try{
-      // 곡이 재등록되어 song_id가 바뀌어도 같은 제목의 과거 최고기록을 모두 합산한다.
-      const [attempts,bests]=await Promise.all([
-        sb.from('play_scores').select('nickname,score,grade').eq('song_title',game.title).order('score',{ascending:false}),
-        sb.from('scores').select('nickname,score,grade').eq('song_title',game.title).order('score',{ascending:false})
-      ]);
-      if(attempts.error&&bests.error)throw attempts.error;
-      rows=[...(attempts.data||[]),...(bests.data||[])];
+      // 기존 정상 방식: 현재 게임 ID에 저장된 플레이어별 최고기록을 직접 조회한다.
+      const {data,error}=await sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});
+      if(error)throw error;
+      rows=data||[];
     }catch(err){rankFailed=true;console.error(err)}
   }else{rankFailed=true}
   // Defensive de-duplication by nickname, keeping the maximum score.
