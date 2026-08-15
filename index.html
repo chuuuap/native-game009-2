@@ -496,7 +496,7 @@ document.addEventListener('contextmenu',e=>{if(e.target.closest('#login'))return
 document.addEventListener('selectstart',e=>{if(e.target.closest('#login'))return;if(!/^(INPUT|TEXTAREA)$/.test(e.target.tagName))e.preventDefault()});
 const SUPABASE_URL='https://akoucvgnlzswxlukrnlf.supabase.co',SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrb3VjdmdubHpzd3hsdWtybmxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NTI1NDEsImV4cCI6MjEwMTMyODU0MX0.uyDYyBIXExjJ_RDlz0d1VK4PkbvPAvbUfeeojgCOexg';
 let sb=null;try{sb=window.supabase?.createClient(SUPABASE_URL,SUPABASE_ANON_KEY)}catch(e){}
-let games=[];let banners=[];let nick='',scores={},playing=null;let totalXp=0,currentLevel=1;
+let games=[];let banners=[];let nick='',scores={},playing=null,resultHandled=false;let totalXp=0,currentLevel=1;
 let bannerIndex=0;
 let bannerTimer=null;
 const BANNER_INTERVAL=5000;
@@ -1153,7 +1153,7 @@ function preparePlayableHtml(html,g){
       c.lineWidth=j===8?2:1;c.beginPath();c.moveTo(l,y);c.lineTo(r,y);c.stroke();
     }
 
-    var padY=hitY+8,padH=h*.067+15;
+    var padY=hitY-9,padH=45;
     for(var lane=0;lane<4;lane++){
       var g=nativeLaneGeometry(w,h,1,lane), gap=Math.max(5,g.laneW*.045),x=g.x+gap,ww=g.laneW-gap*2;
       var col=lane<2?'#52dfff':'#ffad43',active=!!(game&&game.keysDown&&game.keysDown.has(lane));
@@ -1236,8 +1236,10 @@ function preparePlayableHtml(html,g){
     try{
       var g=window.__nativeGame,a=window.__nativeAudio;
       if(!g||reported)return;
-      var finished=(g.finishReason==='life')||(a&&a.ended);
+      var atMusicEnd=!!(a&&(a.ended||(Number.isFinite(a.duration)&&a.duration>0&&a.currentTime>=a.duration-.15)));
+      var finished=(g.finishReason==='life')||atMusicEnd;
       if(finished){
+        if(atMusicEnd&&!g.finishReason)g.finishReason='music';
         reported=true;
         window.parent.postMessage({type:'spoon-score',data:{
           score:g.score||0,
@@ -1258,6 +1260,7 @@ function preparePlayableHtml(html,g){
 async function openGame(g){
   if(!g)return;
   playing=g;
+  resultHandled=false;
   $('#player').classList.add('show');
   const frame=$('#frame');
   frame.src='about:blank';
@@ -1339,14 +1342,17 @@ $('#resultClose').onclick=()=>{$('#resultModal').classList.remove('show');closeP
 $('#resultReplay').onclick=()=>{const g=playing;$('#resultModal').classList.remove('show');closePlayer();if(g)setTimeout(()=>openGame(g),80)};
 window.addEventListener('message',async e=>{
   if(!playing||e.data?.type!=='spoon-score')return;
+  if(resultHandled)return;
+  resultHandled=true;
   const game=playing,d=e.data.data||{},score=+d.score||0,prev=scores[game.id]?.score||0,oldLevel=currentLevel,xpGain=xpFromScore(score);
+  // 네트워크 저장과 랭킹 조회를 기다리지 않고 결과 모달부터 즉시 연다.
+  showSongResult(game,Math.max(score,0),d.finishReason||'music',xpGain,oldLevel).catch(err=>console.error(err));
   if(sb)try{const{error}=await sb.from('play_scores').insert({nickname:nick,song_id:game.id,song_title:game.title,score,grade:d.grade||grade(score)});if(error)throw error;totalXp+=xpGain;renderLevel()}catch(err){console.error(err);toast('경험치 저장에 실패했어요.')}
   if(score>prev){
     scores[game.id]={score,grade:d.grade||grade(score)};
     if(sb)try{const{error}=await sb.from('scores').upsert({nickname:nick,song_id:game.id,song_title:game.title,score,grade:d.grade||grade(score)},{onConflict:'nickname,song_id'});if(error)throw error}catch(err){console.error(err);toast('기록 저장에 실패했어요.')}
   }
   renderAll();
-  await showSongResult(game,Math.max(score,0),d.finishReason||'music',xpGain,oldLevel);
 });
 $('#changeNick').onclick=()=>{try{localStorage.removeItem(SAVED_NICK_KEY)}catch(e){}location.reload()};
 // 로그인 화면이 보이는 동안 곡 목록을 미리 받아둬서, 로그인 직후 화면 전환이 빠르게 느껴지도록 함
