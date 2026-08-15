@@ -609,7 +609,7 @@ async function fetchGameHtml(g,{force=false}={}){
     // 최신 수정시각과 HTML을 서버에서 직접 가져온다. Supabase 응답은 브라우저의 HTML 캐시와 무관하다.
     let {data,error}=await sb.from('songs').select('game_html,updated_at,created_at').eq('id',g.id).single();
     if(error){
-      const fallback=await sb.from('songs').select('*').eq('id',g.id).single();
+      const fallback=await sb.from('songs').select('game_html,created_at').eq('id',g.id).single();
       data=fallback.data;error=fallback.error;
     }
     if(error)throw error;
@@ -741,7 +741,7 @@ $('#start').onclick=()=>{let n=$('#nickname').value.trim();if(!valid.test(n))ret
 async function loadBanners(){
   if(!sb)return;
   try{
-    let res=await sb.from('banners').select('*').eq('is_active',true).order('display_order',{ascending:true}).order('created_at',{ascending:false}).limit(5);
+    let res=await sb.from('banners').select('id,image_data_url,target_url,display_order,created_at').eq('is_active',true).order('display_order',{ascending:true}).order('created_at',{ascending:false}).limit(5);
     if(res.error)throw res.error;
     banners=res.data||[];
     renderBanner();
@@ -758,7 +758,7 @@ async function loadGames(){
       .order('display_order',{ascending:true})
       .order('created_at',{ascending:false});
     if(error){
-      const fallback=await sb.from('songs').select('*').eq('is_published',true);
+      const fallback=await sb.from('songs').select('id,title,composer,difficulty,stars,cover_data_url,created_at').eq('is_published',true).order('created_at',{ascending:false});
       data=fallback.data;error=fallback.error;
     }
     if(error)throw error;
@@ -822,10 +822,6 @@ function enter(){
       setTimeout(()=>loadRanking(),700);
     },40);
   });
-  // 어드민에서 곡을 수정한 뒤 같은 탭을 오래 열어둔 경우도 자동 반영한다.
-  if(!window.__songFreshnessTimer){
-    window.__songFreshnessTimer=setInterval(()=>{ if(!document.hidden)loadGames(); },30000);
-  }
 }
 function ordered(){let a=[...games],m=$('#sort').value;if(m==='name')a.sort((x,y)=>x.title.localeCompare(y.title,'ko'));else if(m==='score')a.sort((x,y)=>(scores[y.id]?.score||0)-(scores[x.id]?.score||0));else if(m==='difficulty')a.sort((x,y)=>(y.stars||0)-(x.stars||0));else a.sort((x,y)=>(y.createdAt||0)-(x.createdAt||0));return a}
 function row(g,i){let b=scores[g.id],stars='';for(let n=0;n<5;n++)stars+=`<span class="${n<(g.stars||3)?'on':''}">★</span>`;let bg=g.cover?`url('${g.cover.replace(/'/g,"%27")}')`:'linear-gradient(135deg,#201b44,#10182d)';return `<button class="song" data-id="${g.id}"><div class="thumb" style="background-image:${bg}">${i===0?'<span class="new">NEW</span>':''}${g.cover?'':'♪'}</div><div><div class="title">${esc(g.title)}</div><div class="composer">${esc(g.composer||'Unknown Artist')}</div><div class="meta"><span class="diff">${esc(g.difficulty||'NORMAL')}</span><span class="stars">${stars}</span></div></div><div class="best"><small>BEST RECORD</small><div class="score">${b?Number(b.score).toLocaleString():'-'}</div>${b?`<div class="grade">${esc(b.grade||grade(b.score))}</div>`:''}</div></button>`}
@@ -1331,9 +1327,7 @@ async function showSongResult(game,score,finishReason,xpGain,oldLevel){
     ]);
     const results=await Promise.allSettled([
       // 플레이어별 최고기록 테이블
-      timed(sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false}).limit(1000),'SCORES'),
-      // 최고기록 테이블이 지연될 때를 위한 전체 플레이 기록
-      timed(sb.from('play_scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false}).limit(1000),'PLAY_SCORES')
+      timed(sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false}).limit(10),'SCORES')
     ]);
     results.forEach(r=>{if(r.status==='fulfilled')rows.push(...r.value);else console.error(r.reason)});
     rankFailed=results.every(r=>r.status==='rejected');
@@ -1368,21 +1362,16 @@ window.addEventListener('message',async e=>{
   $('#songTop10').innerHTML='<div class="empty">최고기록을 불러오는 중…</div>';
   const lp=levelProgress(totalXp);$('#resultLevelText').textContent='Lv. '+lp.lv;$('#resultXpGain').textContent='+'+(xpGain||0).toLocaleString()+' XP'+(lp.lv>oldLevel?' · LEVEL UP!':'');$('#resultLevelFill').style.width=lp.pct+'%';$('#resultModal').classList.add('show');
   if(sb)try{const{error}=await sb.from('play_scores').insert({nickname:nick,song_id:game.id,song_title:game.title,score,grade:d.grade||grade(score)});if(error)throw error;totalXp+=xpGain;renderLevel()}catch(err){console.error(err);toast('경험치 저장에 실패했어요.')}
-  if(sb)try{
-    const {data:history,error:historyError}=await sb.from('play_scores').select('score,grade').eq('nickname',nick).eq('song_title',game.title).order('score',{ascending:false}).limit(1);
-    if(historyError)throw historyError;
-    const historicalBest=Number(history?.[0]?.score)||0,bestScore=Math.max(prev,score,historicalBest),bestGrade=history?.[0]?.grade||d.grade||grade(bestScore);
-    scores[game.id]={score:bestScore,grade:bestGrade};
-    const{error}=await sb.from('scores').upsert({nickname:nick,song_id:game.id,song_title:game.title,score:bestScore,grade:bestGrade},{onConflict:'nickname,song_id'});if(error)throw error;
-  }catch(err){console.error(err);toast('최고기록 저장에 실패했어요.')}
+  if(score>prev){
+    const bestGrade=d.grade||grade(score);
+    scores[game.id]={score,grade:bestGrade};
+    if(sb)try{const{error}=await sb.from('scores').upsert({nickname:nick,song_id:game.id,song_title:game.title,score,grade:bestGrade},{onConflict:'nickname,song_id'});if(error)throw error}catch(err){console.error(err);toast('최고기록 저장에 실패했어요.')}
+  }
   renderAll();
   // 저장이 끝난 뒤 서버의 곡별 최고기록으로 TOP 점수, TOP 10, 실제 등수를 한 번만 확정한다.
   await showSongResult(game,score,d.finishReason||'music',xpGain,oldLevel);
 });
 $('#changeNick').onclick=()=>{try{localStorage.removeItem(SAVED_NICK_KEY)}catch(e){}location.reload()};
-// 로그인 화면이 보이는 동안 곡 목록을 미리 받아둬서, 로그인 직후 화면 전환이 빠르게 느껴지도록 함
-loadGames();loadBanners();
-
 // 저장된 닉네임이 있으면 로그인 화면을 건너뛰고 바로 입장, 없으면 평소처럼 로그인 화면 표시
 let savedNick='';try{savedNick=localStorage.getItem(SAVED_NICK_KEY)||''}catch(e){}
 if(savedNick&&valid.test(savedNick)){
