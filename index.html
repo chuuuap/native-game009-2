@@ -515,6 +515,24 @@ function syncCacheGet(key){
 const gameHtmlMem=new Map();
 const gameHtmlRequests=new Map();
 const GAME_URL_MARKER='NATIVE_GAME_URL:';
+const STATIC_GAME_FILES={
+  'Upgrade':'Upgrade - 수제 - 최적화.html',
+  '널 알리는게 뭐 별거야':'널 알리는게 뭐 별거야 - 수제 2(1) - 최적화.html',
+  '널 알리는 게 뭐 별거야':'널 알리는게 뭐 별거야 - 수제 2(1) - 최적화.html',
+  '누가 박수 소리를 내었는가':'누가 박수 소리를 내었는가 - 수제 2(1) - 최적화.html',
+  '달라달라':'달라달라 - 수제(1) - 최적화.html',
+  '도통':'도통 - 수제(1) - 최적화.html',
+  '명령하지마라':'명령하지마라 - 수제 - 최적화.html',
+  '반갑송':'반갑송 - 수제(1) - 최적화.html',
+  '방송 결재는 반려됐습니다':'방송 결재는 반려됐습니다 - 수제 - 최적화.html',
+  '방종 결재는 반려됐습니다':'방송 결재는 반려됐습니다 - 수제 - 최적화.html',
+  '스푼의 아이':'스푼의 아이 - 수제 - 최적화.html',
+  '에라이':'에라이 - 수제(1) - 최적화.html'
+};
+function staticGameUrl(g){
+  const file=STATIC_GAME_FILES[String(g?.title||'').trim()];
+  return file?'games/'+file.split('/').map(encodeURIComponent).join('/'):'';
+}
 function extractGameUrl(value){
   if(typeof value!=='string')return '';
   const match=value.match(/NATIVE_GAME_URL:([^\s<>]+)/);
@@ -559,6 +577,15 @@ async function fetchGameHtml(g,{force=false}={}){
   if(!force&&cached){g.file=cached;return cached}
   if(!force&&gameHtmlRequests.has(g.id))return gameHtmlRequests.get(g.id);
   const request=(async()=>{try{
+    const staticUrl=staticGameUrl(g);
+    if(staticUrl){
+      const response=await fetch(staticUrl,{cache:'force-cache'});
+      if(!response.ok)throw new Error('STATIC_GAME_HTTP_'+response.status);
+      const html=await response.text();
+      g.file=html;
+      setCachedGameHtml(g.id,html,songVersion(g));
+      return html;
+    }
     // 최신 수정시각과 HTML을 서버에서 직접 가져온다. Supabase 응답은 브라우저의 HTML 캐시와 무관하다.
     let {data,error}=await sb.from('songs').select('game_html,updated_at,created_at').eq('id',g.id).single();
     if(error){
