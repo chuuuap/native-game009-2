@@ -1057,6 +1057,11 @@ function preparePlayableHtml(html,g){
   #ngLife{top:84px!important;right:12px!important;bottom:auto!important;width:170px!important;padding:8px 10px!important;border-radius:12px!important}.ngLifeTop{margin-bottom:4px!important}.ngLifeTop b{font-size:10px!important}.ngLifePct{font-size:15px!important}.ngHeart{font-size:14px!important}.ngLifeTrack{height:9px!important}
   #ngCenterJudge{display:none!important}
   #ngBottom{left:10px!important;right:10px!important;bottom:max(8px,env(safe-area-inset-bottom))!important;height:72px!important;padding:7px 9px!important;gap:5px!important;border-radius:14px!important;grid-template-columns:1.05fr 2.25fr .65fr!important;z-index:5!important}.ngBottomTitle{font-size:8px!important}.ngTimeVal{font-size:9px!important;margin:3px 0!important}.ngJName{font-size:7px!important}.ngJVal{font-size:12px!important}.ngSpeedBox{font-size:12px!important;padding:3px 7px!important;margin-top:3px!important}.ngProgress{height:4px!important}.ngJItem{padding:0 3px!important}
+  #nativeKeyboard{position:absolute;left:18px;right:18px;bottom:92px;height:104px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px;z-index:6;pointer-events:none}
+  .nativeKey{display:grid;place-items:center;border:3px solid var(--key-color);border-radius:12px;background:linear-gradient(180deg,rgba(12,18,35,.9),rgba(3,6,16,.96));color:#fff;font-size:28px;font-weight:1000;text-shadow:0 0 10px var(--key-color);box-shadow:inset 0 0 14px rgba(255,255,255,.1),0 0 12px var(--key-color),0 0 26px var(--key-glow);transition:transform .06s ease,background .06s ease,box-shadow .06s ease}
+  .nativeKey.cyan{--key-color:#39e7ff;--key-glow:rgba(57,231,255,.55)}.nativeKey.orange{--key-color:#ff9c3a;--key-glow:rgba(255,156,58,.55)}
+  .nativeKey.active{transform:translateY(4px) scale(.98);background:linear-gradient(180deg,var(--key-glow),rgba(255,255,255,.16));box-shadow:inset 0 0 22px var(--key-color),0 0 20px var(--key-color),0 0 42px var(--key-color)}
+  @media(max-height:720px){#nativeKeyboard{bottom:82px;height:86px}.nativeKey{font-size:24px}}
   #nativeLaunch{width:var(--game-w)!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important}
   @media(min-width:481px){#gameModal .game,#nativeGameHud,#nativeLaunch{height:min(100dvh,853px)!important;max-height:853px!important}}
   #ngSong{display:none!important}
@@ -1069,6 +1074,7 @@ function preparePlayableHtml(html,g){
   <div id="ngCombo"><div class="ngComboLabel">COMBO</div><div class="ngComboNum" id="ngComboNum">0</div><div class="ngJudge" id="ngJudge"></div></div>
   <div id="ngCenterJudge"><div id="ngCenterCombo">0 COMBO</div><div id="ngCenterFeedback"></div></div>
   <div id="ngLife" class="ng-glass"><div class="ngLifeTop"><b>LIFE</b><span class="ngLifePct" id="ngLifePct">100%</span></div><div class="ngLifeRow"><span class="ngHeart">♥</span><div class="ngLifeTrack"><div class="ngLifeFill" id="ngLifeFill"></div></div></div></div>
+  <div id="nativeKeyboard" aria-hidden="true"><div class="nativeKey cyan" data-native-key="d">D</div><div class="nativeKey cyan" data-native-key="f">F</div><div class="nativeKey orange" data-native-key="j">J</div><div class="nativeKey orange" data-native-key="k">K</div></div>
   <div id="ngBottom" class="ng-glass"><div><div class="ngBottomTitle">SONG TIME</div><div class="ngTimeVal"><b id="ngCur">00:00</b> / <span id="ngDur">00:00</span></div><div class="ngProgress"><div class="ngProgressFill" id="ngProgressFill"></div></div></div><div><div class="ngBottomTitle">JUDGEMENT</div><div class="ngJudges"><div class="ngJItem"><div class="ngJName p">PERFECT</div><div class="ngJVal" id="ngJP">0</div></div><div class="ngJItem"><div class="ngJName g">GREAT</div><div class="ngJVal" id="ngJG">0</div></div><div class="ngJItem"><div class="ngJName o">GOOD</div><div class="ngJVal" id="ngJO">0</div></div><div class="ngJItem"><div class="ngJName m">MISS</div><div class="ngJVal" id="ngJM">0</div></div></div></div><div class="ngSpeed"><div class="ngBottomTitle">SPEED</div><div class="ngSpeedBox" id="ngSpeed">x1.0</div></div></div>
 </div>
 <div id="nativeLaunch"><div class="box"><div class="title">ON AIR RHYTHM</div><button id="nativeLaunchBtn" type="button">게임 시작 ▶</button><p>MISS -5 · 판정 허용 ±0.5초 · LIFE 0이면 종료</p></div></div>
@@ -1078,6 +1084,10 @@ function preparePlayableHtml(html,g){
   var META=window.__NATIVE_UI_META__||{};
   var counts={PERFECT:0,GREAT:0,GOOD:0,MISS:0},lastFeedback='';
   function q(id){return document.getElementById(id)}
+  function setNativeKey(key,on){var el=document.querySelector('[data-native-key="'+String(key).toLowerCase()+'"]');if(el)el.classList.toggle('active',!!on)}
+  document.addEventListener('keydown',function(e){if(!e.repeat)setNativeKey(e.key,true)},true);
+  document.addEventListener('keyup',function(e){setNativeKey(e.key,false)},true);
+  window.addEventListener('blur',function(){document.querySelectorAll('.nativeKey.active').forEach(function(el){el.classList.remove('active')})});
   function fmtTime(sec){sec=Math.max(0,Number(sec)||0);var m=Math.floor(sec/60),s=Math.floor(sec%60);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
   function initHud(){
     q('ngName').textContent=META.nickname||'PLAYER';q('ngLv').textContent='Lv. '+(META.level||1);q('ngAvatar').textContent=META.initial||'P';
