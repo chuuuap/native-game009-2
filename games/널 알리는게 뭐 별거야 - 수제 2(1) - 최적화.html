@@ -588,16 +588,14 @@ function gameLoop() {
   for(let i=0;i<4;i++){
     gctx.fillStyle=i%2?'rgba(255,255,255,.025)':'rgba(255,255,255,.055)';gctx.fillRect(i*laneW,topY,laneW,hitY-topY+38);
     gctx.strokeStyle='rgba(255,255,255,.14)';gctx.strokeRect(i*laneW,topY,laneW,hitY-topY+38);
-    const keyX=i*laneW+7,keyY=hitY-12,keyW=laneW-14,keyH=76,keyActive=game.keysDown.has(i);
-    gctx.save();
-    gctx.shadowColor=laneColors[i];gctx.shadowBlur=keyActive?34:20;gctx.lineWidth=keyActive?5:3;gctx.strokeStyle=laneColors[i];
-    gctx.fillStyle=keyActive?laneColors[i]:'rgba(5,10,24,.9)';
-    roundRect(gctx,keyX,keyY,keyW,keyH,14,true,true);
-    gctx.shadowBlur=keyActive?22:10;gctx.strokeStyle='rgba(255,255,255,.72)';gctx.lineWidth=1.5;
-    roundRect(gctx,keyX+5,keyY+5,keyW-10,keyH-10,10,false,true);
-    gctx.fillStyle=keyActive?'#08111b':'#ffffff';gctx.font='1000 25px system-ui';gctx.textAlign='center';gctx.textBaseline='middle';
+    const keyX=i*laneW+8,keyY=hitY,keyW=laneW-16,keyH=51,keyActive=game.keysDown.has(i);
+    gctx.fillStyle=laneColors[i];roundRect(gctx,keyX,keyY,keyW,keyH,12,true,false);
+    if(keyActive){
+      gctx.save();gctx.shadowColor=laneColors[i];gctx.shadowBlur=22;gctx.strokeStyle=laneColors[i];gctx.lineWidth=3;
+      roundRect(gctx,keyX,keyY,keyW,keyH,12,false,true);gctx.restore();
+    }
+    gctx.fillStyle='#08111b';gctx.font='900 18px system-ui';gctx.textAlign='center';gctx.textBaseline='middle';
     gctx.fillText(laneKeys[i].toUpperCase(),i*laneW+laneW/2,keyY+keyH/2);
-    gctx.restore();
   }
   const now=audio.currentTime;
   for(const n of notes){
