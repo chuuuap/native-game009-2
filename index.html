@@ -1326,10 +1326,13 @@ async function showSongResult(game,score,finishReason,xpGain,oldLevel){
   let rows=[],rankFailed=false;
   if(sb){
     try{
-      // 모든 판의 기록이 남는 play_scores에서 닉네임별 최고점만 추린다.
-      let {data,error}=await sb.from('play_scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});
-      if(error){const fallback=await sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});data=fallback.data;error=fallback.error;}
-      if(error)throw error;rows=data||[];
+      // 곡이 재등록되어 song_id가 바뀌어도 같은 제목의 과거 최고기록을 모두 합산한다.
+      const [attempts,bests]=await Promise.all([
+        sb.from('play_scores').select('nickname,score,grade').eq('song_title',game.title).order('score',{ascending:false}),
+        sb.from('scores').select('nickname,score,grade').eq('song_title',game.title).order('score',{ascending:false})
+      ]);
+      if(attempts.error&&bests.error)throw attempts.error;
+      rows=[...(attempts.data||[]),...(bests.data||[])];
     }catch(err){rankFailed=true;console.error(err)}
   }else{rankFailed=true}
   // Defensive de-duplication by nickname, keeping the maximum score.
@@ -1359,7 +1362,7 @@ window.addEventListener('message',async e=>{
   showSongResult(game,Math.max(score,0),d.finishReason||'music',xpGain,oldLevel).catch(err=>console.error(err));
   if(sb)try{const{error}=await sb.from('play_scores').insert({nickname:nick,song_id:game.id,song_title:game.title,score,grade:d.grade||grade(score)});if(error)throw error;totalXp+=xpGain;renderLevel()}catch(err){console.error(err);toast('경험치 저장에 실패했어요.')}
   if(sb)try{
-    const {data:history,error:historyError}=await sb.from('play_scores').select('score,grade').eq('nickname',nick).eq('song_id',game.id).order('score',{ascending:false}).limit(1);
+    const {data:history,error:historyError}=await sb.from('play_scores').select('score,grade').eq('nickname',nick).eq('song_title',game.title).order('score',{ascending:false}).limit(1);
     if(historyError)throw historyError;
     const historicalBest=Number(history?.[0]?.score)||0,bestScore=Math.max(prev,score,historicalBest),bestGrade=history?.[0]?.grade||d.grade||grade(bestScore);
     scores[game.id]={score:bestScore,grade:bestGrade};
