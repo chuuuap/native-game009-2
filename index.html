@@ -1153,14 +1153,20 @@ function preparePlayableHtml(html,g){
       c.lineWidth=j===8?2:1;c.beginPath();c.moveTo(l,y);c.lineTo(r,y);c.stroke();
     }
 
-    var padY=hitY+8,padH=h*.067;
+    var padY=hitY+6,padH=Math.max(64,Math.min(118,h*.105));
     for(var lane=0;lane<4;lane++){
       var g=nativeLaneGeometry(w,h,1,lane), gap=Math.max(5,g.laneW*.045),x=g.x+gap,ww=g.laneW-gap*2;
-      var col=lane<2?'#52dfff':'#ffad43';
-      c.save();c.shadowBlur=18;c.shadowColor=col;c.lineWidth=3;c.strokeStyle=col;
-      c.fillStyle='rgba(5,8,18,.72)';nativeRoundRect(c,x,padY,ww,padH,12,true,true);c.restore();
-      c.fillStyle='rgba(255,255,255,.8)';c.font='800 '+Math.max(13,h*.019)+'px system-ui';c.textAlign='center';
-      c.fillText(['D','F','J','K'][lane],x+ww/2,padY+padH*.62);
+      var col=lane<2?'#52dfff':'#ffad43',active=!!(game&&game.keysDown&&game.keysDown.has(lane));
+      c.save();
+      var keyGrad=c.createLinearGradient(0,padY,0,padY+padH);
+      keyGrad.addColorStop(0,active?(lane<2?'rgba(45,218,255,.34)':'rgba(255,154,42,.36)'):'rgba(15,22,42,.94)');
+      keyGrad.addColorStop(1,'rgba(2,5,14,.96)');
+      c.fillStyle=keyGrad;c.shadowColor=col;c.shadowBlur=active?42:28;c.lineWidth=active?5:3.5;c.strokeStyle=col;
+      nativeRoundRect(c,x,padY,ww,padH,15,true,true);
+      c.globalAlpha=active?.92:.48;c.shadowBlur=active?28:18;c.lineWidth=1.5;c.strokeStyle='#ffffff';
+      nativeRoundRect(c,x+5,padY+5,ww-10,padH-10,11,false,true);c.restore();
+      c.fillStyle=active?'#ffffff':'rgba(255,255,255,.88)';c.font='900 '+Math.max(18,h*.027)+'px system-ui';c.textAlign='center';
+      c.fillText(['D','F','J','K'][lane],x+ww/2,padY+padH*.61);
     }
   }
   function nativeDrawNote(c,w,h,n,now,travel){
