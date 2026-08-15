@@ -551,7 +551,7 @@ const STATIC_GAME_FILES={
 };
 function staticGameUrl(g){
   const file=STATIC_GAME_FILES[String(g?.title||'').trim()];
-  return file?'games/'+file.split('/').map(encodeURIComponent).join('/'):'';
+  return file?'games/'+file.split('/').map(encodeURIComponent).join('/')+'?v=20260815-nallari-keyboard':'';
 }
 function extractGameUrl(value){
   if(typeof value!=='string')return '';
@@ -561,7 +561,7 @@ function extractGameUrl(value){
 async function resolveGameHtml(value){
   const url=extractGameUrl(value);
   if(!url)return value||'';
-  const response=await fetch(url,{cache:'force-cache'});
+  const response=await fetch(url,{cache:'no-store'});
   if(!response.ok)throw new Error('GAME_FILE_HTTP_'+response.status);
   return response.text();
 }
@@ -599,7 +599,7 @@ async function fetchGameHtml(g,{force=false}={}){
   const request=(async()=>{try{
     const staticUrl=staticGameUrl(g);
     if(staticUrl){
-      const response=await fetch(staticUrl,{cache:'force-cache'});
+      const response=await fetch(staticUrl,{cache:'no-store'});
       if(!response.ok)throw new Error('STATIC_GAME_HTTP_'+response.status);
       const html=await response.text();
       g.file=html;
@@ -1317,16 +1317,22 @@ $('#closePlayer').onclick=()=>{closePlayer();playing=null};
 async function showSongResult(game,score,finishReason,xpGain,oldLevel){
   $('#resultTitle').textContent=finishReason==='life'?'LIFE 소진 · 게임 종료':(game.title||'플레이 결과');
   $('#resultScore').textContent=Number(score).toLocaleString();
-  $('#resultRank').textContent='랭킹 집계 중…';
-  $('#songTop10').innerHTML='<div class="empty">기록을 불러오는 중…</div>';
+  $('#resultRank').innerHTML=`현재 점수 <b>${Number(score).toLocaleString()}</b>점 · 랭킹 집계 중…`;
+  $('#songTop10').innerHTML=`<div class="songRankRow me"><div class="songRankNo">-</div><div class="songRankNick">${esc(nick)} · 나</div><div class="songRankScore">${Number(score).toLocaleString()}</div></div>`;
   const lp=levelProgress(totalXp);$('#resultLevelText').textContent='Lv. ' + lp.lv;$('#resultXpGain').textContent='+'+(xpGain||0).toLocaleString()+' XP'+(lp.lv>oldLevel?' · LEVEL UP!':'');$('#resultLevelFill').style.width=lp.pct+'%';$('#resultModal').classList.add('show');
-  let rows=[];
+  let rows=[],rankFailed=false;
   if(sb){
     try{
-      const {data,error}=await sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});
-      if(error)throw error;
-      rows=data||[];
-    }catch(err){console.error(err)}
+      let {data,error}=await sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});
+      if(error){
+        const fallback=await sb.from('play_scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});
+        data=fallback.data;error=fallback.error;
+      }
+      if(error)throw error;rows=data||[];
+    }catch(err){rankFailed=true;console.error(err)}
+  }else{rankFailed=true}
+  // 저장 완료 시점과 무관하게 방금 플레이한 현재 점수를 랭킹 계산에 반드시 포함한다.
+  rows.push({nickname:nick,score:Number(score)||0,grade:grade(Number(score)||0)});
   }
   // Defensive de-duplication by nickname, keeping the maximum score.
   const bestByNick={};
@@ -1334,7 +1340,9 @@ async function showSongResult(game,score,finishReason,xpGain,oldLevel){
   const ranking=Object.values(bestByNick).sort((a,b)=>b.score-a.score);
   const myIndex=ranking.findIndex(r=>r.nickname===nick);
   if(finishReason!=='life')$('#resultTitle').textContent=game.title||'플레이 결과';
-  $('#resultRank').innerHTML=myIndex>=0?`총 <b>${ranking.length}</b>명 중 <b>${myIndex+1}</b>등`:`총 <b>${ranking.length}</b>명 참여`;
+  $('#resultRank').innerHTML=rankFailed
+    ?`현재 점수 <b>${Number(score).toLocaleString()}</b>점 · 임시 <b>${myIndex+1}</b>등`
+    :`현재 점수 <b>${Number(score).toLocaleString()}</b>점 · 총 <b>${ranking.length}</b>명 중 <b>${myIndex+1}</b>등`;
   $('#songTop10').innerHTML=ranking.length?ranking.slice(0,10).map((r,i)=>`<div class="songRankRow ${r.nickname===nick?'me':''}"><div class="songRankNo">${i+1}</div><div class="songRankNick">${esc(r.nickname)}${r.nickname===nick?' · 나':''}</div><div class="songRankScore">${r.score.toLocaleString()}</div></div>`).join(''):'<div class="empty">아직 집계된 기록이 없어요.</div>';
 }
 
