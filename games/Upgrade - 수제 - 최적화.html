@@ -587,10 +587,10 @@ function gameLoop() {
   for(let i=0;i<4;i++){
     gctx.fillStyle=i%2?'rgba(255,255,255,.025)':'rgba(255,255,255,.055)';gctx.fillRect(i*laneW,topY,laneW,hitY-topY+38);
     gctx.strokeStyle='rgba(255,255,255,.14)';gctx.strokeRect(i*laneW,topY,laneW,hitY-topY+38);
-    const keyX=i*laneW+8,keyY=hitY-9,keyW=laneW-16,keyH=45,keyActive=game.keysDown.has(i);
+    const keyX=i*laneW+8,keyY=hitY-14,keyW=laneW-16,keyH=50,keyActive=game.keysDown.has(i);
     gctx.fillStyle=laneColors[i];roundRect(gctx,keyX,keyY,keyW,keyH,12,true,false);
     if(keyActive){
-      gctx.save();gctx.shadowColor=laneColors[i];gctx.shadowBlur=22;gctx.strokeStyle=laneColors[i];gctx.lineWidth=3;
+      gctx.save();gctx.shadowColor=laneColors[i];gctx.shadowBlur=12;gctx.strokeStyle=laneColors[i];gctx.lineWidth=2;
       roundRect(gctx,keyX,keyY,keyW,keyH,12,false,true);gctx.restore();
     }
     gctx.fillStyle='#08111b';gctx.font='900 18px system-ui';gctx.textAlign='center';gctx.textBaseline='middle';
