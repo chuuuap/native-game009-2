@@ -1333,7 +1333,6 @@ async function showSongResult(game,score,finishReason,xpGain,oldLevel){
   }else{rankFailed=true}
   // 저장 완료 시점과 무관하게 방금 플레이한 현재 점수를 랭킹 계산에 반드시 포함한다.
   rows.push({nickname:nick,score:Number(score)||0,grade:grade(Number(score)||0)});
-  }
   // Defensive de-duplication by nickname, keeping the maximum score.
   const bestByNick={};
   rows.forEach(r=>{const v=+r.score||0;if(!bestByNick[r.nickname]||v>bestByNick[r.nickname].score)bestByNick[r.nickname]={nickname:r.nickname,score:v,grade:r.grade||grade(v)}});
