@@ -1325,12 +1325,18 @@ async function showSongResult(game,score,finishReason,xpGain,oldLevel){
   const lp=levelProgress(totalXp);$('#resultLevelText').textContent='Lv. ' + lp.lv;$('#resultXpGain').textContent='+'+(xpGain||0).toLocaleString()+' XP'+(lp.lv>oldLevel?' · LEVEL UP!':'');$('#resultLevelFill').style.width=lp.pct+'%';$('#resultModal').classList.add('show');
   let rows=[],rankFailed=false;
   if(sb){
-    try{
-      // 기존 정상 방식: 현재 게임 ID에 저장된 플레이어별 최고기록을 직접 조회한다.
-      const {data,error}=await sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false});
-      if(error)throw error;
-      rows=data||[];
-    }catch(err){rankFailed=true;console.error(err)}
+    const timed=(request,label)=>Promise.race([
+      Promise.resolve(request).then(({data,error})=>{if(error)throw error;return data||[]}),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+'_TIMEOUT')),6000))
+    ]);
+    const results=await Promise.allSettled([
+      // 플레이어별 최고기록 테이블
+      timed(sb.from('scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false}).limit(1000),'SCORES'),
+      // 최고기록 테이블이 지연될 때를 위한 전체 플레이 기록
+      timed(sb.from('play_scores').select('nickname,score,grade').eq('song_id',game.id).order('score',{ascending:false}).limit(1000),'PLAY_SCORES')
+    ]);
+    results.forEach(r=>{if(r.status==='fulfilled')rows.push(...r.value);else console.error(r.reason)});
+    rankFailed=results.every(r=>r.status==='rejected');
   }else{rankFailed=true}
   // Defensive de-duplication by nickname, keeping the maximum score.
   const bestByNick={};
