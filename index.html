@@ -514,6 +514,19 @@ function syncCacheGet(key){
 
 const gameHtmlMem=new Map();
 const gameHtmlRequests=new Map();
+const GAME_URL_MARKER='NATIVE_GAME_URL:';
+function extractGameUrl(value){
+  if(typeof value!=='string')return '';
+  const match=value.match(/NATIVE_GAME_URL:([^\s<>]+)/);
+  return match?match[1].trim():'';
+}
+async function resolveGameHtml(value){
+  const url=extractGameUrl(value);
+  if(!url)return value||'';
+  const response=await fetch(url,{cache:'force-cache'});
+  if(!response.ok)throw new Error('GAME_FILE_HTTP_'+response.status);
+  return response.text();
+}
 function gameHtmlCacheKey(id){return 'game_html:'+id}
 function gameHtmlMetaKey(id){return 'game_html_meta:'+id}
 function getCachedGameHtml(id){
@@ -553,7 +566,8 @@ async function fetchGameHtml(g,{force=false}={}){
       data=fallback.data;error=fallback.error;
     }
     if(error)throw error;
-    const html=data?.game_html||'';
+    const stored=data?.game_html||'';
+    const html=await resolveGameHtml(stored);
     const version=songVersion(data)||songVersion(g);
     if(html){
       g.file=html;
